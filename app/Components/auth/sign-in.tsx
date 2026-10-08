@@ -6,6 +6,7 @@ import { FormEvent, useState } from 'react'
 import { AuthLayout } from '../layout/auth-layout';
 import { GoogleButton } from '../buttons/google-button';
 import { InputField } from '@/lib/actions/utils';
+import { signIn } from 'next-auth/react'
 
 export default function SignInForm() {
   const [email, setEmail] = useState(''); 
@@ -14,13 +15,36 @@ export default function SignInForm() {
   const [error, setError] = useState(''); 
   const [loading, setLoading] = useState(false)
 
-  function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); 
-    if (!email || !password) { 
-        setError('Enter your email and password.'); 
-      return 
-    }; 
-    
-    setError(''); setLoading(true); window.setTimeout(() => setLoading(false), 1200) }
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+  
+    if (!email || !password) {
+      setError('Enter your email and password.')
+      return
+    }
+  
+    setError('')
+    setLoading(true)
+  
+    try {
+      const result = await signIn('credentials', {
+        email,
+        password,
+        redirect: false,
+      })
+  
+      if (!result || result.error) {
+        setError('Invalid email or password.')
+        return
+      }
+  
+      window.location.href = '/'
+    } catch {
+      setError('Something went wrong. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
   
     return (
    <AuthLayout>
@@ -63,9 +87,9 @@ export default function SignInForm() {
         </p>}
         
         <div className="-mt-1 flex justify-end">
-            <button type="button" className="text-[13px] font-medium text-[#0b5c55]">
+            <Link href="/views/forget-password" className="text-[13px] font-medium text-[#0b5c55]">
                 Forgot password?
-            </button>
+            </Link>
         </div>
         <button type="submit" disabled={loading} className="mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-[10px] bg-[#0b5c55] text-[14px] font-semibold text-white transition hover:bg-[#084740] disabled:opacity-70">
             {loading && <Loader2 className="animate-spin" />}

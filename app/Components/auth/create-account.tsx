@@ -15,7 +15,7 @@ export default function CreateAccountForm() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
     if (!name || !email || password.length < 8 || password !== confirm) {
@@ -26,10 +26,33 @@ export default function CreateAccountForm() {
     setError('')
     setLoading(true)
 
-    window.setTimeout(() => {
-      setLoading(false)
-    }, 1200)
+    try {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+        }),
+      })
+
+  const data = await response.json()
+
+  if (!response.ok) {
+    setError(data.error || 'Unable to create your account.')
+    return
   }
+
+    window.location.href = '/'
+      } catch (error) {
+        setError('Something went wrong. Please try again.')
+      } finally {
+        setLoading(false)
+      }
+}
 
   return (
     <AuthLayout>

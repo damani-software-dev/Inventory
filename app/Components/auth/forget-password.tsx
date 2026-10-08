@@ -13,20 +13,42 @@ export default function ForgotPasswordForm() {
   const [sent, setSent] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+
     if (!email) {
-      setError('Enter your work email to continue.')
-      return
+        setError('Enter your work email to continue.')
+        return
     }
+
     setError('')
     setLoading(true)
-    window.setTimeout(() => {
-      setLoading(false)
-      setSent(true)
-    }, 900)
-  }
 
+    try {
+        const response = await fetch('/api/forget-password', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                email: email.trim().toLowerCase(),
+            }),
+        })
+
+        const data = await response.json()
+
+        if (!response.ok) {
+            setError(data.error || 'Something went wrong. Please try again.')
+            return
+        }
+
+        setSent(true)
+    } catch {
+        setError('Something went wrong. Please try again.')
+    } finally {
+        setLoading(false)
+    }
+}
   return (
   <AuthLayout>
     <section className="w-full max-w-[420px]">
@@ -50,7 +72,7 @@ export default function ForgotPasswordForm() {
             If an account exists for <span className="font-medium text-[#29403e]">{email}</span>, a reset link is on its way.
         </p>
         
-        <Link href="/sign-in" className="mt-6 inline-flex items-center gap-2 text-[13px] font-semibold text-[#0b5c55] hover:underline"><ArrowLeft data-icon="inline-start" />
+        <Link href="/views/sign-in" className="mt-6 inline-flex items-center gap-2 text-[13px] font-semibold text-[#0b5c55] hover:underline"><ArrowLeft data-icon="inline-start" />
         Back to sign in
         </Link>
     
