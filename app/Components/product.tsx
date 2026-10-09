@@ -1,23 +1,38 @@
 "use client"
 
-import { useMemo, useState } from 'react'
-import {Archive, BarChart3, Boxes, ChevronDown, ChevronLeft, ChevronRight,CircleDollarSign, ClipboardList, Edit3, Ellipsis,LayoutDashboard, Menu, PackagePlus, PanelLeftClose, Plus, Search, Settings, SlidersHorizontal, Trash2, Users, X,} from 'lucide-react'
-import { navGroups, products, } from '@/lib/actions/product' 
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {Archive, BarChart3, Boxes, ChevronDown, ChevronLeft, ChevronRight,CircleDollarSign, ClipboardList, Edit3, Ellipsis,LayoutDashboard, Menu, PackagePlus, PanelLeftClose, Plus, Search, Settings, SlidersHorizontal, Trash2, Users, X,} from 'lucide-react' 
 import { StatusBadge } from './inventory/status-badge'
 import { useSession, signOut } from 'next-auth/react'
 import AddProductModal from './modals/add-product'
 import Sidebar from './sidebar'
+import EditProductModal from './modals/edit-product'
 
 
-export default function Dashboard() {
+type ProductRecord = {
+    id: number
+    name: string
+    description: string | null
+    imageUrl: string | null
+    collection: string | null
+    type: string
+    status: string
+    createdAt: string
+    updatedAt: string
+  }
+
+export default function Product() {
   const [query, setQuery] = useState('')
-  const [category, setCategory] = useState('All categories')
+  const [category, setCategory] = useState('All collections')
   const [status, setStatus] = useState('All statuses')
   const [sort, setSort] = useState('Recently updated')
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const [mobileNav, setMobileNav] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [isAddProductOpen, setIsAddProductOpen] = useState(false)
+  const [products, setProducts] = useState<ProductRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState('')
 
   const { data: session } = useSession()
 
@@ -30,14 +45,106 @@ export default function Dashboard() {
         .slice(0, 2)
         .toUpperCase() || 'U'
 
-  const filtered = useMemo(() => {
-    const matches = products.filter((product) => {
-      const text = `${product.name} ${product.sku} ${product.category}`.toLowerCase()
-      return text.includes(query.toLowerCase()) && (category === 'All categories' || product.category === category) && (status === 'All statuses' || product.status === status)
-    })
-    if (sort === 'Stock: low to high') return [...matches].sort((a, b) => a.stock - b.stock)
-    return matches
-  }, [query, category, status, sort])
+
+
+const loadProducts = useCallback(async () => {
+  try {
+    setFetchError('')
+
+    const response = await fetch('/api/products')
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch products')
+    }
+
+    const data = await response.json()
+
+    setProducts(data.products)
+  } catch (error) {
+    console.error('Error loading products:', error)
+    setFetchError('Unable to load products. Please try again.')
+  } finally {
+    setLoading(false)
+  }
+}, [])
+
+useEffect(() => {
+  void loadProducts()
+}, [loadProducts])
+
+const filtered = useMemo(() => {
+  const matches = products.filter((product) => {
+    const searchText =
+      `${product.name} ${product.description ?? ''} ${product.collection ?? ''} ${product.type}`
+        .toLowerCase()
+
+    const matchesSearch = searchText.includes(query.toLowerCase())
+
+    const matchesCollection =
+      category === 'All collections' ||
+      product.collection === category
+
+    const matchesStatus =
+      status === 'All statuses' ||
+      product.status === status
+
+    return matchesSearch && matchesCollection && matchesStatus
+  })
+
+  if (sort === 'Name A-Z') {
+    return [...matches].sort((a, b) =>
+      a.name.localeCompare(b.name)
+    )
+  }
+
+  return [...matches].sort(
+    (a, b) =>
+      new Date(b.updatedAt).getTime() -
+      new Date(a.updatedAt).getTime()
+  )
+}, [products, query, category, status, sort])
+
+const [editingProduct, setEditingProduct] =
+  useState<ProductRecord | null>(null)
+
+const [deletingProductId, setDeletingProductId] =
+  useState<number | null>(null)
+
+
+async function handleDeleteProduct(product: ProductRecord) {
+    const confirmed = window.confirm(
+      `Delete "${product.name}"? This action cannot be undone.`
+    )
+  
+    if (!confirmed) return
+  
+    setDeletingProductId(product.id)
+  
+    try {
+      const response = await fetch(`/api/products/${product.id}`, {
+        method: 'DELETE',
+      })
+  
+      const data = await response.json()
+  
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete product')
+      }
+  
+      setOpenMenu(null)
+      await loadProducts()
+    } catch (error) {
+      console.error('Delete product error:', error)
+  
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : 'Unable to delete product.'
+      )
+    } finally {
+      setDeletingProductId(null)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[#f8fafb] text-slate-950">
@@ -94,9 +201,9 @@ export default function Dashboard() {
                 {/* Page heading */}
                 <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
                     <div>
-                        <p className="mb-2 text-sm font-medium text-emerald-700">Workspace / Inventory</p>
-                        <h1 className="text-[28px] font-semibold tracking-[-0.03em] text-slate-950">Inventory</h1>
-                        <p className="mt-1 text-sm text-slate-500">Manage products, stock levels, and inventory activity.</p>
+                        <p className="mb-2 text-sm font-medium text-emerald-700">Workspace / Products</p>
+                        <h1 className="text-[28px] font-semibold tracking-[-0.03em] text-slate-950">Products</h1>
+                        <p className="mt-1 text-sm text-slate-500">Manage all products in one environment</p>
                     </div>
                     <button onClick={() => setIsAddProductOpen(true)} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm shadow-emerald-600/20 transition hover:bg-emerald-700">
                         <Plus className="size-4" />Add Product
@@ -105,6 +212,15 @@ export default function Dashboard() {
                     <AddProductModal
                         open={isAddProductOpen}
                         onClose={() => setIsAddProductOpen(false)}
+                    />
+
+                    <EditProductModal
+                        open={editingProduct !== null}
+                        product={editingProduct}
+                        onClose={() => setEditingProduct(null)}
+                        onSaved={() => {
+                            void loadProducts()
+                        }}
                     />
                 </div>
 
@@ -133,25 +249,55 @@ export default function Dashboard() {
                             <input aria-label="Search products" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search products..." className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/10" />
                         </div>
                         <div className="grid grid-cols-2 gap-2 sm:flex">
-                            <select aria-label="Filter by category" value={category} onChange={(e) => setCategory(e.target.value)} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600 outline-none focus:border-emerald-500">
-                                <option>All categories</option>
-                                <option>Beverages</option>
-                                <option>Groceries</option>
-                                <option>Frozen Foods</option>
+                            
+                            <select aria-label="Filter by collection" value={category} onChange={(e) => setCategory(e.target.value)} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600 outline-none focus:border-emerald-500">
+                           
+                                <option>All collections</option>
+                                
+                                {[...new Set(
+                                    products
+                                    .map((product) => product.collection)
+                                    .filter((collection): collection is string => Boolean(collection))
+                                )].map((collection) => (
+                                    <option key={collection} value={collection}>
+                                    {collection}
+                                    </option>
+                                ))}
                             </select>
+                            
                             <select aria-label="Filter by status" value={status} onChange={(e) => setStatus(e.target.value)} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600 outline-none focus:border-emerald-500">
                                 <option>All statuses</option>
-                                <option>In Stock</option>
-                                <option>Low Stock</option>
-                                <option>Out of Stock</option>
+                                <option value="ACTIVE">Active</option>
+                                <option value="DRAFT">Draft</option>
                             </select>
+
                             <select aria-label="Sort products" value={sort} onChange={(e) => setSort(e.target.value)} className="col-span-2 h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600 outline-none focus:border-emerald-500 sm:col-span-1">
                                 <option>Recently updated</option>
-                                <option>Stock: low to high</option>
+                                <option>Name A-Z</option>
                             </select>
                         </div>
                     </div>
                     
+                    {loading && (
+                    <p className="px-5 py-4 text-sm text-slate-500">
+                        Loading products...
+                    </p>
+                    )}
+
+                    {fetchError && (
+                    <div className="flex items-center justify-between px-5 py-4">
+                        <p className="text-sm text-red-600">{fetchError}</p>
+                        <button
+                        onClick={() => {
+                            setLoading(true)
+                            void loadProducts()
+                        }}
+                        className="text-sm font-medium text-emerald-700 hover:text-emerald-800"
+                        >
+                        Retry
+                        </button>
+                    </div>
+                    )}
                     {/* Product table */}
                     <div className="overflow-x-auto">
                         <table className="w-full min-w-[850px] text-left">
@@ -160,10 +306,8 @@ export default function Dashboard() {
                             <thead>
                                 <tr className="border-b border-slate-100 bg-slate-50/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
                                     <th className="px-5 py-3.5 font-semibold">Product</th>
-                                    <th className="px-4 py-3.5 font-semibold">SKU</th>
-                                    <th className="px-4 py-3.5 font-semibold">Category</th>
-                                    <th className="px-4 py-3.5 font-semibold">Variants</th>
-                                    <th className="px-4 py-3.5 font-semibold">Stock</th>
+                                    <th className="px-4 py-3.5 font-semibold">Collection</th>
+                                    <th className="px-4 py-3.5 font-semibold">Type</th>
                                     <th className="px-4 py-3.5 font-semibold">Status</th>
                                     <th className="px-4 py-3.5 font-semibold">Last Updated</th>
                                     <th className="w-12 px-3 py-3.5" />
@@ -171,61 +315,108 @@ export default function Dashboard() {
                             </thead>
                             
                             {/* Product rows */}
-                            <tbody>{filtered.map((product) => <tr key={product.sku} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60">
                             
-                                    {/* Product information */}
+                            <tbody>
+                                {!loading && !fetchError && filtered.map((product) => (
+                                <tr
+                                    key={product.id}
+                                    className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60"
+                                    >
                                     <td className="px-5 py-4">
-                                        
                                         <div className="flex items-center gap-3">
-                                            <div className={`flex size-10 shrink-0 items-center justify-center rounded-lg text-lg ${product.tint} text-xs font-bold text-slate-500`}>
-                                                {product.icon}
-                                            </div>
-                                        
-                                            <div>
-                                                <p className="text-sm font-semibold text-slate-800">{product.name}</p>
-                                                <p className="mt-0.5 text-xs text-slate-400">{product.description}</p>
-                                            </div>
+                                        <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-emerald-50 text-sm font-bold text-emerald-700">
+                                            {product.imageUrl ? (
+                                            <img
+                                                src={product.imageUrl}
+                                                alt={product.name}
+                                                className="size-full object-cover"
+                                            />
+                                            ) : (
+                                            product.name.slice(0, 1).toUpperCase()
+                                            )}
+                                        </div>
+
+                                        <div>
+                                            <p className="text-sm font-semibold text-slate-800">
+                                            {product.name}
+                                            </p>
+                                            <p className="mt-0.5 text-xs text-slate-400">
+                                            {product.description || 'No description'}
+                                            </p>
+                                        </div>
                                         </div>
                                     </td>
-                                    
-                                    <td className="px-4 py-4 text-sm text-slate-500">{product.sku}</td>
-                                    <td className="px-4 py-4 text-sm text-slate-600">{product.category}</td>
-                                    <td className="px-4 py-4 text-sm text-slate-600">{product.variants}</td>
-                                    <td className="px-4 py-4 text-sm font-semibold text-slate-700">{product.stock}</td>
-                                    <td className="px-4 py-4"><StatusBadge status={product.status} /></td>
-                                    <td className="px-4 py-4 text-sm text-slate-500">{product.updated}</td>
-                            
-                                    {/* Product actions */}
-                                    <td className="relative px-3 py-4">
-                                
-                                        <button onClick={() => setOpenMenu(openMenu === product.sku ? null : product.sku)} aria-label={`Actions for ${product.name}`} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
-                                            <Ellipsis className="size-4" />
-                                        </button>
-                                    
-                                        {/* Product action menu */}
-                                        {openMenu === product.sku && <div className="absolute right-3 top-12 z-10 w-40 rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
-                                        
-                                            <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50">View Product</button>
-                                            
-                                            <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50">
-                                                <Edit3 className="size-3.5" />Edit
-                                            </button>
-                                            
-                                            <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50">
-                                                <PackagePlus className="size-3.5" />Adjust Stock
-                                            </button>
-                                            
-                                            <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-red-600 hover:bg-red-50">
-                                                <Trash2 className="size-3.5" />Delete
-                                            </button>
-                                        </div>}
+
+                                    <td className="px-4 py-4 text-sm text-slate-600">
+                                        {product.collection || '—'}
                                     </td>
-                                </tr>)}
+
+                                    <td className="px-4 py-4 text-sm text-slate-600">
+                                        {product.type.replaceAll('_', ' ')}
+                                    </td>
+
+                                    <td className="px-4 py-4">
+                                        <span
+                                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+                                            product.status === 'ACTIVE'
+                                            ? 'bg-emerald-50 text-emerald-700'
+                                            : 'bg-slate-100 text-slate-600'
+                                        }`}
+                                        >
+                                        {product.status === 'ACTIVE' ? 'Active' : 'Draft'}
+                                        </span>
+                                    </td>
+
+                                    <td className="px-4 py-4 text-sm text-slate-500">
+                                        {new Date(product.updatedAt).toLocaleDateString()}
+                                    </td>
+
+                                    <td className="relative px-3 py-4">
+                                        <button
+                                        onClick={() =>
+                                            setOpenMenu(
+                                            openMenu === String(product.id)
+                                                ? null
+                                                : String(product.id)
+                                            )
+                                        }
+                                        aria-label={`Actions for ${product.name}`}
+                                        className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                                        >
+                                        <Ellipsis className="size-4" />
+                                        </button>
+
+                                        {openMenu === String(product.id) && (
+                                        <div className="absolute right-3 top-12 z-10 w-40 rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+                                            
+                                            <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50">
+                                            View Product
+                                            </button>
+
+                                            
+                                            <button onClick={() => {setEditingProduct(product)
+                                                setOpenMenu(null)
+                                                }}
+                                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50">
+                                                <Edit3 className="size-3.5" />
+                                                Edit
+                                            </button>
+
+                                           
+                                            <button onClick={() => void handleDeleteProduct(product)} disabled={deletingProductId === product.id} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-red-600 hover:bg-red-50 disabled:opacity-50">
+                                                <Trash2 className="size-3.5" />
+                                                {deletingProductId === product.id ? 'Deleting...' : 'Delete'}
+                                            </button>
+                                        </div>
+                                        )}
+                                    </td>
+                                </tr>
+                                ))}
                             </tbody>
                         </table>
                         
                         {/* Empty state */}
-                        {filtered.length === 0 && <div className="flex flex-col items-center justify-center px-6 py-20 text-center">
+                        {!loading && !fetchError && filtered.length === 0 && <div className="flex flex-col items-center justify-center px-6 py-20 text-center">
                                 <div className="flex size-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
                                     <Boxes className="size-5" />
                                 </div>
@@ -236,7 +427,7 @@ export default function Dashboard() {
                         
                         {/* Pagination */}
                         <div className="flex items-center justify-between border-t border-slate-100 px-5 py-4">
-                            <p className="text-xs text-slate-500">Showing <span className="font-medium text-slate-700">{filtered.length}</span> of 24 products</p>
+                            <p className="text-xs text-slate-500">Showing <span className="font-medium text-slate-700">{filtered.length}</span> of {products.length} products</p>
                             <div className="flex items-center gap-1">
                                 <button className="rounded-md border border-slate-200 p-1.5 text-slate-400 hover:bg-slate-50" aria-label="Previous page">
                                     <ChevronLeft className="size-4" />

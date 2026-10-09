@@ -27,3 +27,8 @@ export type User = Prisma.UserModel
  * 
  */
 export type PasswordResetToken = Prisma.PasswordResetTokenModel
+/**
+ * Model Product
+ * 
+ */
+export type Product = Prisma.ProductModel

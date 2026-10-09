@@ -29,3 +29,30 @@ model PasswordResetToken {
   @@index([userId])
   @@index([expiresAt])
 }
+
+enum ProductType {
+  T_SHIRT
+  HOODIE
+  ACCESSORY
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+}
+
+model Product {
+  id          Int           @id @default(autoincrement())
+  name        String
+  description String?
+  imageUrl    String?
+  collection  String?
+  type        ProductType
+  status      ProductStatus @default(DRAFT)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([name])
+  @@index([collection])
+  @@index([status])
+}
