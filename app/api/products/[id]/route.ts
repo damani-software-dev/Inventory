@@ -10,6 +10,49 @@ type RouteContext = {
 const validTypes = Object.values(ProductType)
 const validStatuses = Object.values(ProductStatus)
 
+// GET /api/products/:id
+export async function GET(
+    request: Request,
+    { params }: { params: Promise<{ id: string }> }
+  ) {
+    try {
+      const { id } = await params
+      const productId = Number(id)
+  
+      if (!Number.isInteger(productId) || productId <= 0) {
+        return Response.json(
+          { error: 'Invalid product ID' },
+          { status: 400 }
+        )
+      }
+  
+      const product = await prisma.product.findUnique({
+        where: { id: productId },
+        include: {
+          variants: {
+            orderBy: { createdAt: 'desc' },
+          },
+        },
+      })
+  
+      if (!product) {
+        return Response.json(
+          { error: 'Product not found' },
+          { status: 404 }
+        )
+      }
+  
+      return Response.json({ product })
+    } catch (error) {
+      console.error('Get product error:', error)
+  
+      return Response.json(
+        { error: 'Unable to retrieve product' },
+        { status: 500 }
+      )
+    }
+  }
+  
 // PATCH /api/products/:id
 export async function PATCH(
   request: NextRequest,

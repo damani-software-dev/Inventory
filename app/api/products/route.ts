@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { ProductStatus, ProductType } from '@/lib/generated/prisma/client'
 import { prisma } from '@/lib/prisma'
 
@@ -74,32 +74,48 @@ export async function POST(request: Request) {
     }
 }
 
-export async function GET() {
-    try {
-      const products = await prisma.product.findMany({
-        orderBy: {
-          createdAt: 'desc',
-        },
-        select: {
-          id: true,
-          name: true,
-          description: true,
-          imageUrl: true,
-          collection: true,
-          type: true,
-          status: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      })
-  
-      return NextResponse.json({ products })
-    } catch (error) {
-      console.error('Failed to fetch products:', error)
-  
-      return NextResponse.json(
-        { error: 'Failed to fetch products' },
-        { status: 500 }
-      )
-    }
+
+export async function GET(request: NextRequest) {
+  try {
+    const query = request.nextUrl.searchParams.get('q')?.trim() ?? ''
+
+    const products = await prisma.product.findMany({
+      where: query
+        ? {
+            OR: [
+              {
+                name: {
+                  contains: query,
+                  mode: 'insensitive',
+                },
+              },
+              {
+                description: {
+                  contains: query,
+                  mode: 'insensitive',
+                },
+              },
+              {
+                collection: {
+                  contains: query,
+                  mode: 'insensitive',
+                },
+              },
+            ],
+          }
+        : undefined,
+      orderBy: {
+        createdAt: 'desc',
+      },
+    })
+
+    return NextResponse.json({ products })
+  } catch (error) {
+    console.error('Product search failed:', error)
+
+    return NextResponse.json(
+      { error: 'Failed to search products' },
+      { status: 500 }
+    )
   }
+}

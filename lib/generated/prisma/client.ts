@@ -56,3 +56,8 @@ export type PasswordResetToken = Prisma.PasswordResetTokenModel
  * 
  */
 export type Product = Prisma.ProductModel
+/**
+ * Model ProductVariant
+ * 
+ */
+export type ProductVariant = Prisma.ProductVariantModel

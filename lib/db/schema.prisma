@@ -41,6 +41,7 @@ enum ProductStatus {
   ACTIVE
 }
 
+
 model Product {
   id          Int           @id @default(autoincrement())
   name        String
@@ -52,7 +53,28 @@ model Product {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
+  variants    ProductVariant[]
+
   @@index([name])
   @@index([collection])
   @@index([status])
+}
+
+model ProductVariant {
+  id        Int      @id @default(autoincrement())
+  productId Int
+  color     String
+  size      String
+  sku       String   @unique
+  price     Decimal  @db.Decimal(12, 2)
+  cost      Decimal  @db.Decimal(12, 2)
+  quantity  Int      @default(0)
+  imageUrl  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, color, size])
+  @@index([productId])
 }

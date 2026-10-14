@@ -7,6 +7,7 @@ import { useSession, signOut } from 'next-auth/react'
 import AddProductModal from './modals/add-product'
 import Sidebar from './sidebar'
 import EditProductModal from './modals/edit-product'
+import Link from 'next/link'
 
 
 type ProductRecord = {
@@ -33,6 +34,8 @@ export default function Product() {
   const [products, setProducts] = useState<ProductRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState('')
+  const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
 
   const { data: session } = useSession()
 
@@ -47,30 +50,72 @@ export default function Product() {
 
 
 
-const loadProducts = useCallback(async () => {
-  try {
-    setFetchError('')
 
-    const response = await fetch('/api/products')
+   const loadProducts = useCallback(async (searchTerm = '') => {
+        try {
+            setFetchError('')
+            setLoading(true)
+            
+            const params = new URLSearchParams({
+                q: searchTerm,
+            })
+            
+            const response = await fetch(`/api/products?${params.toString()}`
+            )
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch products')
+            }
+            
+            const data = await response.json()
+                setProducts(data.products)
+            } catch (error) {
+            console.error('Error loading products:', error)
+            setFetchError('Unable to load products. Please try again.')
+            } finally {
+                setLoading(false)
+            }
+    }, [])
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch products')
-    }
 
-    const data = await response.json()
+    useEffect(() => {
+        const controller = new AbortController()
+      
+        const timeout = setTimeout(async () => {
+          try {
+            setLoading(true)
+            setFetchError('')
+      
+            const params = new URLSearchParams({ q: search })
+      
+            const response = await fetch(
+              `/api/products?${params.toString()}`,
+              { signal: controller.signal }
+            )
+      
+            if (!response.ok) {
+              throw new Error('Failed to fetch products')
+            }
+      
+            const data = await response.json()
+            setProducts(data.products)
+          } catch (error) {
+            if (error instanceof Error && error.name !== 'AbortError') {
+              setFetchError('Unable to load products. Please try again.')
+            }
+          } finally {
+            if (!controller.signal.aborted) {
+              setLoading(false)
+            }
+          }
+        }, 300)
+      
+        return () => {
+          clearTimeout(timeout)
+          controller.abort()
+        }
+      }, [search])
 
-    setProducts(data.products)
-  } catch (error) {
-    console.error('Error loading products:', error)
-    setFetchError('Unable to load products. Please try again.')
-  } finally {
-    setLoading(false)
-  }
-}, [])
-
-useEffect(() => {
-  void loadProducts()
-}, [loadProducts])
 
 const filtered = useMemo(() => {
   const matches = products.filter((product) => {
@@ -225,7 +270,7 @@ async function handleDeleteProduct(product: ProductRecord) {
                 </div>
 
                 {/* Inventory summary */}
-                <section aria-label="Inventory summary" className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">{[['Total Products', '24', '+3 this month'], ['Total Units', '1,248', '+12.5% from last month'], ['Low Stock', '3', 'Needs attention'], ['Out of Stock', '1', 'Needs restocking']].map(([label, value, note], index) => <div key={label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.02)] sm:p-5">
+                {/* <section aria-label="Inventory summary" className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">{[['Total Products', '24', '+3 this month'], ['Total Units', '1,248', '+12.5% from last month'], ['Low Stock', '3', 'Needs attention'], ['Out of Stock', '1', 'Needs restocking']].map(([label, value, note], index) => <div key={label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.02)] sm:p-5">
                 
                     <div className="flex items-start justify-between">
                         <p className="text-xs font-medium text-slate-500 sm:text-sm">{label}</p>
@@ -237,7 +282,7 @@ async function handleDeleteProduct(product: ProductRecord) {
                     
                     </div>)}
                 
-                </section>
+                </section> */}
                 
                 {/* Product inventory section */}
                 <section className="mt-8 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.02)]">
@@ -246,7 +291,7 @@ async function handleDeleteProduct(product: ProductRecord) {
                     <div className="flex flex-col gap-4 border-b border-slate-200 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
                         <div className="relative w-full lg:max-w-[290px]">
                             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                            <input aria-label="Search products" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search products..." className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/10" />
+                            <input aria-label="Search products" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products..." className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/10" />
                         </div>
                         <div className="grid grid-cols-2 gap-2 sm:flex">
                             
@@ -278,26 +323,6 @@ async function handleDeleteProduct(product: ProductRecord) {
                         </div>
                     </div>
                     
-                    {loading && (
-                    <p className="px-5 py-4 text-sm text-slate-500">
-                        Loading products...
-                    </p>
-                    )}
-
-                    {fetchError && (
-                    <div className="flex items-center justify-between px-5 py-4">
-                        <p className="text-sm text-red-600">{fetchError}</p>
-                        <button
-                        onClick={() => {
-                            setLoading(true)
-                            void loadProducts()
-                        }}
-                        className="text-sm font-medium text-emerald-700 hover:text-emerald-800"
-                        >
-                        Retry
-                        </button>
-                    </div>
-                    )}
                     {/* Product table */}
                     <div className="overflow-x-auto">
                         <table className="w-full min-w-[850px] text-left">
@@ -317,7 +342,34 @@ async function handleDeleteProduct(product: ProductRecord) {
                             {/* Product rows */}
                             
                             <tbody>
-                                {!loading && !fetchError && filtered.map((product) => (
+                                {loading && (
+                                <tr>
+                                    <td colSpan={6} className="px-5 py-4 text-center text-sm text-slate-500">
+                                    Loading products...
+                                    </td>
+                                </tr>
+                                )}
+
+                                {!loading && fetchError && (
+                                <tr>
+                                    <td colSpan={6} className="px-5 py-4">
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-sm text-red-600">{fetchError}</p>
+
+                                        <button
+                                        onClick={() => {
+                                            setLoading(true)
+                                            void loadProducts()
+                                        }}
+                                        className="text-sm font-medium text-emerald-700 hover:text-emerald-800"
+                                        >
+                                        Retry
+                                        </button>
+                                    </div>
+                                    </td>
+                                </tr>
+                                )}
+                                {!loading && !fetchError && !error && filtered.map((product) => (
                                 <tr
                                     key={product.id}
                                     className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60"
@@ -389,9 +441,9 @@ async function handleDeleteProduct(product: ProductRecord) {
                                         {openMenu === String(product.id) && (
                                         <div className="absolute right-3 top-12 z-10 w-40 rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
                                             
-                                            <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50">
+                                            <Link href={`/views/prod-details/${product.id}`} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50">
                                             View Product
-                                            </button>
+                                            </Link>
 
                                             
                                             <button onClick={() => {setEditingProduct(product)

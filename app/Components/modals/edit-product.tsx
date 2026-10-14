@@ -51,6 +51,8 @@ export default function EditProductModal({open,product,onClose,onSaved,}: EditPr
     event: React.FormEvent<HTMLFormElement>
   ) {
     event.preventDefault()
+    
+    if (!product) return
     setSaving(true)
     setError('')
 
